@@ -41,8 +41,7 @@ public class PathFinding {
 		System.out.println("Planned path...");
 		System.out.println(route.toString());
 		Button.ENTER.waitForPressAndRelease();
-		nav.addWaypoint(0, 500);
-		nav.followPath();
+		nav.followPath(route);
 		nav.waitForStop();
 	}		
 }
