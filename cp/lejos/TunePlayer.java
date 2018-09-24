@@ -2,8 +2,8 @@ package cp.lejos;
 
 import java.io.File;
 
-import lejos.nxt.LCD;
-import lejos.nxt.Sound;
+import lejos.hardware.Sound;
+import lejos.hardware.lcd.LCD;
 
 public class TunePlayer extends Thread {
 	public void run() {

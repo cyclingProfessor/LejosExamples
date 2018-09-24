@@ -1,12 +1,17 @@
 package cp.lejos;
-import lejos.geom.Line;
-import lejos.geom.Rectangle;
-import lejos.nxt.Button;
-import lejos.nxt.Motor;
+import lejos.hardware.Button;
+import lejos.hardware.motor.EV3LargeRegulatedMotor;
+import lejos.hardware.port.MotorPort;
+import lejos.robotics.RegulatedMotor;
+import lejos.robotics.chassis.Chassis;
+import lejos.robotics.chassis.Wheel;
+import lejos.robotics.chassis.WheeledChassis;
+import lejos.robotics.geometry.Line;
+import lejos.robotics.geometry.Rectangle;
 import lejos.robotics.localization.OdometryPoseProvider;
 import lejos.robotics.localization.PoseProvider;
 import lejos.robotics.mapping.LineMap;
-import lejos.robotics.navigation.DifferentialPilot;
+import lejos.robotics.navigation.MovePilot;
 import lejos.robotics.navigation.Navigator;
 import lejos.robotics.navigation.Pose;
 import lejos.robotics.navigation.Waypoint;
@@ -21,7 +26,13 @@ import lejos.robotics.pathfinding.ShortestPathFinder;
 public class PathFinding {
 
 	public static void main(String[] args) throws Exception {
-		DifferentialPilot robot = new DifferentialPilot(58,60,Motor.A,Motor.B,false);
+		RegulatedMotor left = new EV3LargeRegulatedMotor(MotorPort.A);
+		RegulatedMotor right = new EV3LargeRegulatedMotor(MotorPort.B);
+		Wheel wheelLeft = WheeledChassis.modelWheel(left, 60).offset(-29);
+		Wheel wheelRight = WheeledChassis.modelWheel(right, 60).offset(29);
+		Chassis chassis = new WheeledChassis(new Wheel[]{wheelRight, wheelLeft}, WheeledChassis.TYPE_DIFFERENTIAL); 
+		
+		MovePilot robot = new MovePilot(chassis);
 		PoseProvider posep = new OdometryPoseProvider(robot);
 		
 		// Create a rudimentary map:
@@ -30,7 +41,7 @@ public class PathFinding {
 		lines [1] = new Line(-20f, 40f, 20f, 40f);
 		lines [2] = new Line(-20f, 60f, 20f, 60f);
 		lines [3] = new Line(-20f, 80f, 20f, 80f);
-		lejos.geom.Rectangle bounds = new Rectangle(-50, -50, 250, 250);
+		Rectangle bounds = new Rectangle(-50, -50, 250, 250);
 		LineMap myMap = new LineMap(lines, bounds);
 		
 		PathFinder pf = new ShortestPathFinder(myMap);
