@@ -11,9 +11,9 @@ import lejos.hardware.Button;
 import lejos.hardware.lcd.LCD;
 
 public class MainClass {
-	private static String IPaddress = "10.0.1.2";
+	private static String IPaddress = "10.0.1.4";
 	private static int port = 1234;
-	public static Socket connection = null;
+	public static Socket connection = new Socket();
 	public static DataInputStream dis;
 	public static DataOutputStream dos;
 	private static int MAX_READ = 30;
@@ -22,16 +22,17 @@ public class MainClass {
 
 	public static void main(String[] args) throws IOException {
 		byte[] buffer = new byte[MAX_READ];
-		(new TunePlayer()).start();
+		//(new TunePlayer()).start();
 		
 		LCD.drawString("Waiting  ", 0, 0);
 		SocketAddress sa = new InetSocketAddress(IPaddress, port);
 		try {
-			connection.connect(sa, 500); // Timeout possible
+			connection.connect(sa, 1500); // Timeout possible
 		} catch (Exception ex) {
 			// This connection fail is just ignored - we were probably not trying to connect because there was no
 			// Android device
 			// Could be Timeout or just a normal IO exception
+			LCD.drawString(ex.getMessage(), 0,6);
 			connection = null;
 		}
 		if (connection != null) {
