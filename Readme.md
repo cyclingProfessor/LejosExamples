@@ -1,5 +1,13 @@
 # Lejos EV3 Example Programs:
 
+* EV3 requires the code to be compiled at Java version 7 or below (1.7)
+* You can download a program to the EV3 from the command line. 
+ 1. Compile the code. 
+ 2. Add it a runnable jar file with a manifest.
+ 3. scp it over to the EV3 at root@10.0.1.1:/home/lejos/programs.
+ 
+See: https://sourceforge.net/p/lejos/wiki/Developing%20with%20leJOS%20-%20alpha%20version/?version=4
+
 ## ClapFilter.java  
 
 The clap filter as shown in Worksheet Three. 
