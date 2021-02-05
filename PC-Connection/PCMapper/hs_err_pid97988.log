@@ -1,0 +1,21 @@
+#
+# A fatal error has been detected by the Java Runtime Environment:
+#
+#  SIGSEGV (0xb) at pc=0x00007fc5d731e0ad, pid=97988, tid=98005
+#
+# JRE version: OpenJDK Runtime Environment (11.0.9.1+1) (build 11.0.9.1+1-Ubuntu-0ubuntu1.20.04)
+# Java VM: OpenJDK 64-Bit Server VM (11.0.9.1+1-Ubuntu-0ubuntu1.20.04, mixed mode, sharing, tiered, compressed oops, g1 gc, linux-amd64)
+# Problematic frame:
+# C  [libjimage.so+0x30ad]
+#
+# Core dump will be written. Default location: Core dumps may be processed with "/usr/share/apport/apport %p %s %c %d %P %E" (or dumping to /home/dave/eclipse-workspace/PCMapper/core.97988)
+#
+# If you would like to submit a bug report, please visit:
+#   https://bugs.launchpad.net/ubuntu/+source/openjdk-lts
+#
+
+---------------  S U M M A R Y ------------
+
+Command Line: -agentlib:jdwp=transport=dt_socket,suspend=y,address=localhost:44315 --module-path=/home/dave/src/javafx-sdk-11.0.2/lib --add-modules=javafx.controls --add-modules=javafx.fxml -javaagent:/home/dave/eclipse/java-2020-06/eclipse/configuration/org.eclipse.osgi/581/0/.cp/lib/javaagent-shaded.jar -Dfile.encoding=UTF-8 PCMapper
+
+Host: 
