@@ -1,7 +1,6 @@
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
@@ -15,8 +14,6 @@ import lejos.robotics.RegulatedMotor;
 import lejos.robotics.chassis.Chassis;
 import lejos.robotics.chassis.Wheel;
 import lejos.robotics.chassis.WheeledChassis;
-import lejos.robotics.geometry.Line;
-import lejos.robotics.geometry.Rectangle;
 import lejos.robotics.mapping.LineMap;
 import lejos.robotics.navigation.DestinationUnreachableException;
 import lejos.robotics.navigation.MovePilot;
@@ -30,12 +27,27 @@ import lejos.robotics.pathfinding.ShortestPathFinder;
 public class EV3Mapper {
   private final static String BASE_IP = "10.0.1."; // Check this from the PC application.
   private final static int PORT = 2468; // Yu can choose any port, but it must be the same on the
-  // server
-  private static DataInputStream in = null;
-  private static PrintWriter out = null;
 
+  public static enum COMMANDS {
+    POSE('P'), DESTINATION('D'), START('B'), STOP('E'), EXIT('X'), MAP('M');
+
+    private final char keyCode;
+
+    private COMMANDS(char k) {
+      keyCode = k;
+    }
+
+    public final char getCode() {
+      return keyCode;
+    }
+  }
 
   public static void main(String[] args) {
+    // server
+    DataInputStream in = null;
+    DataOutputStream out = null;
+    Timer sender = null;
+    
     LCD.drawString("Use up/down", 0, 0);
     LCD.drawString("to set IP", 2, 1);
     LCD.drawString("ENTER to finish", 2, 2);
@@ -65,15 +77,12 @@ public class EV3Mapper {
     Socket connection = null;
     try {
       connection = new Socket();
-      DataInputStream dis;
-      DataOutputStream dos;
 
       connection.connect(sa, 1500); // Timeout possible
       in = new DataInputStream(connection.getInputStream());
-      out = new PrintWriter(connection.getOutputStream());
+      out = new DataOutputStream(connection.getOutputStream());
       LCD.drawString("Connected to Server", 0, 1);
 
-      startPoseSenderThread(1000, out);
     } catch (Exception ex) {
       // Could be Timeout or just a normal IO exception
       LCD.drawString(ex.getMessage(), 0, 6);
@@ -83,50 +92,72 @@ public class EV3Mapper {
     LineMap map = null;
     Navigator navigator = getNavigator();
     PathFinder pf = null;
-    final int MAP = 'M';
-    final int EXIT = 'X';
-    final int GOTO = 'G';
-    final int STOP = 'S';
     final int CLOSED = -1;
 
     while (connection != null) {
       try {
-        int command = in.read();
+        int command = in.readChar();
         LCD.clear(3);
-        switch (command) {
-          default:
-            System.err.println("Got an unexpected character: " + command);
-            break;
-          case CLOSED:
-            LCD.drawString("Remote close", 0, 3);
-            connection = null;
-          case MAP:
-            LCD.drawString("(M)AP", 0, 3);
-            map = readMap(in);
-            if (map != null) {
-              pf = new ShortestPathFinder(map);
-            }
-            break;
-          case EXIT:
-            LCD.drawString("E(X)IT", 0, 3);
-            connection = null;
-            break;
-          case GOTO:
-            LCD.drawString("(G)OTO", 0, 3);
-            if (pf != null) {
-              navigator.stop();
-              try {
-                Path route = pf.findRoute(new Pose(0, 0, 0), new Waypoint(0, 100));
-                navigator.followPath(route);
-              } catch (DestinationUnreachableException e) {
-                LCD.drawString("POSE UNREACHABLE", 0, 3);
-              }
-            }
-            break;
-          case STOP:
+        if (command == CLOSED) {
+          LCD.drawString("Remote close", 0, 3);
+          connection = null;
+        }
+        if (command == COMMANDS.MAP.getCode()) {
+          LCD.drawString("(M)AP", 0, 3);
+          map = new LineMap();
+          map.loadObject(in);
+          if (map != null) {
+            pf = new ShortestPathFinder(map);
+            // System.out.println(map.getBoundingRect().getX() + ", " + map.getBoundingRect().getY() + ", " + map.getBoundingRect().getWidth() + ", " + map.getBoundingRect().getHeight());
+          }
+        }
+        if (command == COMMANDS.EXIT.getCode()) {
+          LCD.drawString("E(X)IT", 0, 3);
+          connection = null;
+        }
+        if (command == COMMANDS.POSE.getCode()) {
+          Pose from = new Pose();
+          from.loadObject(in);
+          navigator.getPoseProvider().setPose(from);
+          // System.out.println("POSE: Recvd: " + from.getX() + ", " + from.getY() + ", " + from.getHeading());
+        }
+        if (command == COMMANDS.DESTINATION.getCode()) {
+          LCD.drawString("(D)EST.", 0, 3);
+          if (pf != null) {
             navigator.stop();
-            LCD.drawString("(S)TOP", 0, 3);
-            break;
+            try {
+              Pose start = navigator.getPoseProvider().getPose();
+              // To avoid nav bugs move the start in the current direction of the robot first
+              start.moveUpdate(1);
+              Waypoint end = new Waypoint(0, 0);
+              end.loadObject(in);
+              Path route = pf.findRoute(start, end);
+              // System.out.println("DEST: Start: " + start.getX() + ", " + start.getY() + ", " + start.getHeading());
+              // System.out.println("Dest: END: " + end.getX() + ", " + end.getY());
+              // for (int index = 0 ; index < route.size() ; index++) {
+              //   System.out.println("DEST: Path (point): " + route.get(index).getX() + ", " + route.get(index).getY());
+              // }
+              out.writeChar('R');
+              route.dumpObject(out);
+              navigator.setPath(route);
+            } catch (DestinationUnreachableException e) {
+              LCD.drawString("POSE UNREACHABLE", 0, 3);
+            }
+          }
+        }
+        if (command == COMMANDS.START.getCode()) { // We must not get asked to send anything except Pose's until stop is called.
+          Pose p = navigator.getPoseProvider().getPose();
+          // System.out.println("NAV: Start Pose: " + p.getX() + ", " + p.getY() + ", " + p.getHeading());
+          navigator.followPath();
+          LCD.drawString("(B)EGIN", 0, 3);
+          sender = new Timer(true); // make sure to always set Timer to use Daemon thread.
+          TimerTask repeatSend = new SenderTask(out, navigator); 
+          sender.schedule(repeatSend, 0, 200);
+        }
+        if (command == COMMANDS.STOP.getCode()) {
+          navigator.stop();
+          LCD.drawString("(E)ND", 0, 3);
+          sender.cancel();
         }
       } catch (IOException e) {
         // Just end the program if we get a broken file read
@@ -138,53 +169,38 @@ public class EV3Mapper {
     Button.ENTER.waitForPressAndRelease();
   }
 
-  private static LineMap readMap(DataInputStream in) {
-    try {
-      int width = in.readShort();
-      int height = in.readShort();
-      Rectangle bounds = new Rectangle(0, 0, width, height);
-      int lineCount = in.readShort();
-      Line[] lines = new Line[lineCount];
-      for (int index = 0 ; index < lineCount ; index++) {
-        int start_x = in.readShort();
-        int start_y = in.readShort();
-        int end_x = in.readShort();
-        int end_y = in.readShort();
-        lines[index] = new Line(start_x, start_y, end_x, end_y);
-      }
-      return new LineMap(lines, bounds);
-    } catch (IOException e) {
-      return null;
-    }
-  }
-
   private static Navigator getNavigator() {
     RegulatedMotor left = new EV3LargeRegulatedMotor(MotorPort.A);
     RegulatedMotor right = new EV3LargeRegulatedMotor(MotorPort.B);
-    Wheel wheelLeft = WheeledChassis.modelWheel(left, 60).offset(-29);
-    Wheel wheelRight = WheeledChassis.modelWheel(right, 60).offset(29);
+    Wheel wheelLeft = WheeledChassis.modelWheel(left, 5.6f).offset(-7.0f);
+    Wheel wheelRight = WheeledChassis.modelWheel(right, 5.6f).offset(7.0f);
     Chassis chassis =
         new WheeledChassis(new Wheel[] {wheelRight, wheelLeft}, WheeledChassis.TYPE_DIFFERENTIAL);
     MovePilot robot = new MovePilot(chassis);
+    robot.setLinearSpeed(0.5); // Since we are measuring the robot in cm this is 5mm per second.
+    robot.setAngularSpeed(10.0); // This is a rotational velocity of 10 degrees per second.
     return new Navigator(robot); // Use default OdometryPoseProvider
   }
 
-  // Send the Pose message to the server every "period" milliseconds
-  private static void startPoseSenderThread(int period, PrintWriter server) {
-    Timer sender = new Timer(true); // make sure to always set Timer to use Daemon thread.
-    sender.schedule(new SenderTask(server), 0, period);
-  }
-
   private static class SenderTask extends TimerTask {
-    private PrintWriter server;
+    private DataOutputStream server;
+    private Navigator nav;
 
-    public SenderTask(PrintWriter server) {
+    public SenderTask(DataOutputStream server, Navigator nav) {
       this.server = server;
+      this.nav = nav;
     }
 
     public void run() {
-      server.println("hello");
-      server.flush();
+      try {
+        if (nav != null) {
+          server.writeChar(COMMANDS.POSE.getCode());
+          nav.getPoseProvider().getPose().dumpObject(server);
+        }
+        server.flush();
+      } catch (IOException e) {
+        return;
+      }
     }
   }
 }

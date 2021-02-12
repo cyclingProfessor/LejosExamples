@@ -19,21 +19,23 @@
 <?import javafx.scene.layout.RowConstraints?>
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
+<?import javafx.scene.shape.Line?>
 
 <VBox xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="PCMapper">
    <children>
-      <GridPane>
+      <GridPane prefHeight="32.0" prefWidth="1146.0">
          <columnConstraints>
-            <ColumnConstraints hgrow="SOMETIMES" maxWidth="280.0" minWidth="10.0" prefWidth="247.0" />
-            <ColumnConstraints hgrow="SOMETIMES" maxWidth="325.0" minWidth="10.0" prefWidth="170.0" />
-            <ColumnConstraints hgrow="SOMETIMES" maxWidth="581.0" minWidth="10.0" prefWidth="573.0" />
-            <ColumnConstraints hgrow="SOMETIMES" maxWidth="342.0" minWidth="10.0" prefWidth="283.0" />
+            <ColumnConstraints hgrow="SOMETIMES" maxWidth="280.0" minWidth="10.0" prefWidth="260.0" />
+            <ColumnConstraints hgrow="SOMETIMES" maxWidth="545.0" minWidth="10.0" prefWidth="201.0" />
+            <ColumnConstraints hgrow="SOMETIMES" maxWidth="607.0" minWidth="10.0" prefWidth="313.0" />
+            <ColumnConstraints hgrow="SOMETIMES" maxWidth="514.0" minWidth="10.0" prefWidth="236.0" />
+            <ColumnConstraints hgrow="SOMETIMES" maxWidth="596.0" minWidth="10.0" prefWidth="310.0" />
          </columnConstraints>
          <rowConstraints>
             <RowConstraints minHeight="10.0" vgrow="SOMETIMES" />
          </rowConstraints>
          <children>
-            <FlowPane hgap="20.0" prefWidth="354.0" style="-fx-border-color: black;">
+            <FlowPane id="connectControls" fx:id="connectControls" hgap="20.0" prefWidth="250.0" style="-fx-border-color: black;">
                <children>
                 <Button fx:id="connectButton" mnemonicParsing="false" onAction="#connect" text="Connect:">
                      <FlowPane.margin>
@@ -47,9 +49,9 @@
                   </HBox>
                </children>
             </FlowPane>
-            <HBox spacing="10.0" style="-fx-border-color: black;" GridPane.columnIndex="3">
+            <HBox fx:id="drawButtons" prefHeight="114.0" prefWidth="303.0" spacing="10.0" style="-fx-border-color: black;" GridPane.columnIndex="4">
                <children>
-                  <RadioButton contentDisplay="RIGHT" mnemonicParsing="false" onAction="#MapSelect" selected="true" text="Map Lines" toggleGroup="$MapDrive">
+                  <RadioButton accessibleText="Draw barrier lines on map" contentDisplay="RIGHT" mnemonicParsing="false" onAction="#MapSelect" selected="true" text="Map Lines" toggleGroup="$MapDrive">
                      <toggleGroup>
                         <ToggleGroup fx:id="MapDrive" />
                      </toggleGroup>
@@ -57,12 +59,12 @@
                         <Insets top="5.0" />
                      </HBox.margin>
                   </RadioButton>
-                  <RadioButton contentDisplay="RIGHT" layoutX="10.0" layoutY="10.0" mnemonicParsing="false" onAction="#BoundarySelect" text="Boundary" toggleGroup="$MapDrive">
+                  <RadioButton accessibleText="draw the bounding rectangle" contentDisplay="RIGHT" layoutX="10.0" layoutY="10.0" mnemonicParsing="false" onAction="#BoundarySelect" text="Boundary" toggleGroup="$MapDrive">
                      <HBox.margin>
                         <Insets top="5.0" />
                      </HBox.margin>
                   </RadioButton>
-                  <RadioButton mnemonicParsing="false" onAction="#DriveSelect" text="Drive" toggleGroup="$MapDrive">
+                  <RadioButton accessibleText="get robot pose and destination" mnemonicParsing="false" onAction="#DriveSelect" text="Robot" toggleGroup="$MapDrive">
                      <HBox.margin>
                         <Insets top="5.0" />
                      </HBox.margin></RadioButton>
@@ -78,17 +80,15 @@
                </GridPane.margin>
             </HBox>
             <Label id="connectedLabel" fx:id="connectedLabel" text="Connected" textFill="RED" visible="false" GridPane.columnIndex="1" GridPane.halignment="CENTER" GridPane.valignment="CENTER" />
-            <ButtonBar prefWidth="552.0" GridPane.columnIndex="2">
-               <GridPane.margin>
-                  <Insets right="5.0" />
-               </GridPane.margin>
-               <buttons>
-                  <Button id="mapButton" mnemonicParsing="false" onAction="#sendMap" text="Send Map" />
-                  <Button id="planButton" mnemonicParsing="false" onAction="#sendPlan" text="Plan" />
-                  <Button id="startButton" mnemonicParsing="false" onAction="#sendStart" text="Start" />
-                  <Button id="stopButton" mnemonicParsing="false" onAction="#sendStop" text="Stop" />
-                  <Button id="exitButton" mnemonicParsing="false" onAction="#sendExit" text="Exit" />
-               </buttons>
+            <Button fx:id="sendButton" accessibleText="Send Data to EV3" disable="true" mnemonicParsing="false" onAction="#sendUpdate" text="Send To EV3" GridPane.columnIndex="2" GridPane.halignment="CENTER" GridPane.valignment="CENTER" />
+            <ButtonBar prefHeight="40.0" prefWidth="200.0" GridPane.columnIndex="3">
+              <buttons>
+                  <Button id="startStopButton" fx:id="startStopButton" accessibleText="Start/SOP EV3 on Path" disable="true" mnemonicParsing="false" onAction="#sendStartStop" text="Start" />
+                  <Button fx:id="exitButton" accessibleText="Exit the Program" mnemonicParsing="false" onAction="#sendExit" text="Exit" />
+              </buttons>
+               <padding>
+                  <Insets right="10.0" />
+               </padding>
             </ButtonBar>
          </children>
       </GridPane>
@@ -97,22 +97,18 @@
             <StackPane prefHeight="720.0" prefWidth="1280.0">
                <children>
                   <Canvas fx:id="gridCanvas" height="720.0" width="1280.0" />
-                  <Canvas id="pathCanvas" height="720.0" width="1280.0" />
+                  <Canvas fx:id="pathCanvas" height="720.0" width="1280.0" />
                   <Pane fx:id="robotPane" prefHeight="720.0" prefWidth="1280.0">
                      <children>
-                        <ImageView id="robot" fx:id="robot" disable="true" fitHeight="52.0" fitWidth="51.0" pickOnBounds="true" preserveRatio="true">
+                        <ImageView id="robot" fx:id="robot" disable="true" fitHeight="52.0" fitWidth="51.0" layoutX="500.0" layoutY="150.0" pickOnBounds="true" preserveRatio="true">
                            <image>
                               <Image url="@robot.png" />
                            </image>
                         </ImageView>
-                        <ImageView id="greyRobot" fx:id="greyRobot" fitHeight="52.0" fitWidth="51.0" pickOnBounds="true" preserveRatio="true">
-                           <image>
-                              <Image url="@robot.png" />
-                           </image>
-                        </ImageView>
+                        <Line fx:id="journeyArrow" endX="520.0" endY="275.0" startX="520.0" startY="175.0" stroke="RED" />
                      </children></Pane>
                   <Canvas id="mapCanvas" fx:id="mapCanvas" height="720.0" width="1280.0" />
-                  <Canvas id="mapLineCanvas" fx:id="mapLineCanvas" height="720.0" onKeyPressed="#procUndo" onMouseDragged="#canvasDragged" onMousePressed="#canvasPressed" onMouseReleased="#canvasReleased" width="1280.0" />
+                  <Canvas id="mapLineCanvas" fx:id="mapLineCanvas" height="720.0" onKeyTyped="#procUndo" onMouseDragged="#canvasDragged" onMousePressed="#canvasPressed" onMouseReleased="#canvasReleased" width="1280.0" />
                </children>
             </StackPane>
          </content>
