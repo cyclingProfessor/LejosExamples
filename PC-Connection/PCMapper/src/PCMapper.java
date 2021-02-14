@@ -110,12 +110,16 @@ public class PCMapper extends Application {
   public void hasConnected(boolean connected) {
     connectControls.setDisable(connected);
     sendButton.setDisable(!connected);
-    hasSentMap(false); // Whenever the connection status changes, we have not yet sent the map.
+    hasSentRoute(false); // Whenever the connection status changes, we have not yet sent the map.
     mapAlterable(true); // ... and the map is drawable.
     connectedLabel.setVisible(connected);
   }
   
-  public void hasSentMap(boolean sent) {
+//  public void disableSend(boolean cannotSend) {
+//    sendButton.setDisable(cannotSend);
+//  }
+  
+  public void hasSentRoute(boolean sent) {
     startStopButton.setDisable(!sent);
   }
 
@@ -210,7 +214,7 @@ public class PCMapper extends Application {
   }
 
   ///////////////////////////////////////////////////////////////////////////////
-  // The connect callback - this should really be a JavaFX Worker
+  // The connect callback - this should really be a JavaFX Task
   @FXML
   void connect(ActionEvent event) {
     
@@ -266,6 +270,7 @@ public class PCMapper extends Application {
       } catch (IOException e) {
         hasConnected(false);  // Connection broken.  Change all active components.
       }
+      hasSentRoute(true);
     }
     
     // Finally send the new destination
@@ -278,8 +283,8 @@ public class PCMapper extends Application {
       } catch (IOException e) {
         hasConnected(false);  // Connection broken.  Change all active components.
       }
+      hasSentRoute(true);
     }
-    hasSentMap(true);
   }
   
   ///////////////////////////////////////////////////////////
@@ -291,7 +296,10 @@ public class PCMapper extends Application {
     try {
       out.writeChar(isStopped ? COMMANDS.START.getCode() : COMMANDS.STOP.getCode());
       isStopped = !isStopped;
-      mapAlterable(isStopped);
+      mapAlterable(isStopped); // If we are stopped then we can alter the map.
+      hasSentRoute(!isStopped); // We can only start a route once.
+      // It is now not necessary to disable sending the same route twice as the EV3 deals with this.
+//      disableSend(true);  // Disable sending of route button whenever we press start/stop 
     } catch (IOException e) {
       hasConnected(false);  // Connection broken.  Change all active components.
     }

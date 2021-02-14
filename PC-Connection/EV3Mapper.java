@@ -91,6 +91,7 @@ public class EV3Mapper {
 
     LineMap map = null;
     Navigator navigator = getNavigator();
+    Waypoint destination = new Waypoint(0,0);
     PathFinder pf = null;
     final int CLOSED = -1;
 
@@ -129,9 +130,8 @@ public class EV3Mapper {
               Pose start = navigator.getPoseProvider().getPose();
               // To avoid nav bugs move the start in the current direction of the robot first
               start.moveUpdate(1);
-              Waypoint end = new Waypoint(0, 0);
-              end.loadObject(in);
-              Path route = pf.findRoute(start, end);
+              destination.loadObject(in);
+              Path route = pf.findRoute(start, destination);
               // System.out.println("DEST: Start: " + start.getX() + ", " + start.getY() + ", " + start.getHeading());
               // System.out.println("Dest: END: " + end.getX() + ", " + end.getY());
               // for (int index = 0 ; index < route.size() ; index++) {
@@ -146,9 +146,12 @@ public class EV3Mapper {
           }
         }
         if (command == COMMANDS.START.getCode()) { // We must not get asked to send anything except Pose's until stop is called.
-          Pose p = navigator.getPoseProvider().getPose();
+          // Pose p = navigator.getPoseProvider().getPose();
           // System.out.println("NAV: Start Pose: " + p.getX() + ", " + p.getY() + ", " + p.getHeading());
-          navigator.followPath();
+          // IF we are very close to the destination then we do not bother to actually navigate to it.
+          if (navigator.getPoseProvider().getPose().distanceTo(destination) > 1) {
+            navigator.followPath();
+          }
           LCD.drawString("(B)EGIN", 0, 3);
           sender = new Timer(true); // make sure to always set Timer to use Daemon thread.
           TimerTask repeatSend = new SenderTask(out, navigator); 
@@ -170,14 +173,14 @@ public class EV3Mapper {
   }
 
   private static Navigator getNavigator() {
-    RegulatedMotor left = new EV3LargeRegulatedMotor(MotorPort.A);
-    RegulatedMotor right = new EV3LargeRegulatedMotor(MotorPort.B);
+    RegulatedMotor left = new EV3LargeRegulatedMotor(MotorPort.B); // These are swapped since there is no "reverse"
+    RegulatedMotor right = new EV3LargeRegulatedMotor(MotorPort.A); // flag when creating the CHassis version of a pilot
     Wheel wheelLeft = WheeledChassis.modelWheel(left, 5.6f).offset(-7.0f);
     Wheel wheelRight = WheeledChassis.modelWheel(right, 5.6f).offset(7.0f);
     Chassis chassis =
         new WheeledChassis(new Wheel[] {wheelRight, wheelLeft}, WheeledChassis.TYPE_DIFFERENTIAL);
     MovePilot robot = new MovePilot(chassis);
-    robot.setLinearSpeed(0.5); // Since we are measuring the robot in cm this is 5mm per second.
+    robot.setLinearSpeed(1.0); // Since we are measuring the robot in cm this is 5mm per second.
     robot.setAngularSpeed(10.0); // This is a rotational velocity of 10 degrees per second.
     return new Navigator(robot); // Use default OdometryPoseProvider
   }
@@ -195,7 +198,9 @@ public class EV3Mapper {
       try {
         if (nav != null) {
           server.writeChar(COMMANDS.POSE.getCode());
-          nav.getPoseProvider().getPose().dumpObject(server);
+          Pose toSend = nav.getPoseProvider().getPose();
+          toSend.dumpObject(server);
+          LCD.drawString("Sent:" + (int) toSend.getX() + "," + (int) toSend.getY(), 0,4);
         }
         server.flush();
       } catch (IOException e) {
