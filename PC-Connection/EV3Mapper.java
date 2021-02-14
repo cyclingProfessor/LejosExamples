@@ -188,6 +188,7 @@ public class EV3Mapper {
   private static class SenderTask extends TimerTask {
     private DataOutputStream server;
     private Navigator nav;
+    private Pose lastSent;
 
     public SenderTask(DataOutputStream server, Navigator nav) {
       this.server = server;
@@ -200,7 +201,13 @@ public class EV3Mapper {
           server.writeChar(COMMANDS.POSE.getCode());
           Pose toSend = nav.getPoseProvider().getPose();
           toSend.dumpObject(server);
-          LCD.drawString("Sent:" + (int) toSend.getX() + "," + (int) toSend.getY(), 0,4);
+          if (lastSent != null && lastSent.distanceTo(toSend.getLocation()) > 5) {
+            // Wow - we seem to have jumped! - wtf - this happens and is hard to understand.
+            LCD.drawString("JUMPING??", 0,5);
+          }
+          LCD.clear(4);
+          LCD.drawString("Sent:" + (int) toSend.getX() + "," + (int) toSend.getY()  + "    ", 0,4);
+          lastSent = toSend;
         }
         server.flush();
       } catch (IOException e) {

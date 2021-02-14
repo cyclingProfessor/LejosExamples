@@ -4,9 +4,11 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.Stack;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
@@ -37,13 +39,22 @@ import lejos.robotics.pathfinding.Path;
 
 public class PCMapper extends Application {
 
-  public enum COMMANDS {
+  public enum Commands {
     POSE('P'), DESTINATION('D'), START('B'), STOP('E'), EXIT('X'), MAP('M');
+
     private final char keyCode;
-    private COMMANDS(char k) { keyCode = k;}
-    public char getCode() { 
+
+    private Commands(char k) {
+      keyCode = k;
+    }
+
+    public char getCode() {
       return keyCode;
     }
+  }
+
+  public enum ConnectionStatus {
+    WAITING, CONNECTING, CONNECTED;
   }
 
   private static final double X_ROBOT_OFFSET = 20.5;
@@ -55,26 +66,29 @@ public class PCMapper extends Application {
   private double yScale;
   private Map localMap = null;
 
-  enum DrawType { DRIVE, MAP, BOUNDARY }
+  enum DrawType {
+    DRIVE, MAP, BOUNDARY
+  }
+
   DrawType drawType = DrawType.MAP; // Change the effect of clicking on the canvas.
 
   //////////////////////////////////////////////
   // The user interface components controls
   @FXML
   private Label connectedLabel;
-  
+
   @FXML
   private Button connectButton;
-  
+
   @FXML
   private Button sendButton;
-  
+
   @FXML
   private HBox drawButtons;
-  
+
   @FXML
   private FlowPane connectControls;
-  
+
   @FXML
   private Spinner<Integer> spinner; // Get the IP address last digit.
 
@@ -89,36 +103,53 @@ public class PCMapper extends Application {
   @FXML
   private ImageView robot; // The robot picture on the robot pane.
   private Rotate robotRotation; // The current facing direction of the robot.
-  
+
   @FXML
   private javafx.scene.shape.Line journeyArrow; // The journey we are planning.
 
   @FXML
-  private Canvas gridCanvas; // Fixed coordinates - using centimetres. 
-  
+  private Canvas gridCanvas; // Fixed coordinates - using centimetres.
+
   @FXML
   private Canvas mapCanvas; // Show the lines and the boundary
 
   @FXML
-  private Canvas pathCanvas; // Show the planned path sent to us from the EV3 
+  private Canvas pathCanvas; // Show the planned path sent to us from the EV3
 
   @FXML
-  private Canvas mapLineCanvas; // Only used as a temporary drawing area - and to collect mouse and keyboard events
+  private Canvas mapLineCanvas; // Only used as a temporary drawing area - and to collect mouse and
+                                // keyboard events
 
   //////////////////////////////////////////////////////////////////////
   // Set appropriate controls active at different times
-  public void hasConnected(boolean connected) {
-    connectControls.setDisable(connected);
-    sendButton.setDisable(!connected);
+  public void hasConnected(ConnectionStatus connected) {
+    switch (connected) {
+      case CONNECTED:
+        connectButton.setText("Connect");
+        connectButton.setDisable(true);
+        spinner.setDisable(true);
+        sendButton.setDisable(false);
+        connectedLabel.setText("Connected to EV3");
+        break;
+      case CONNECTING:
+        connectButton.setText("Cancel");
+        connectButton.setDisable(false);
+        spinner.setDisable(true);
+        sendButton.setDisable(true);
+        connectedLabel.setText("Connecting...");
+        break;
+      case WAITING:
+        connectButton.setText("Connect");
+        connectButton.setDisable(false);
+        spinner.setDisable(true);
+        sendButton.setDisable(true);
+        connectedLabel.setText("Waiting to Connect");
+        break;
+    }
     hasSentRoute(false); // Whenever the connection status changes, we have not yet sent the map.
     mapAlterable(true); // ... and the map is drawable.
-    connectedLabel.setVisible(connected);
   }
-  
-//  public void disableSend(boolean cannotSend) {
-//    sendButton.setDisable(cannotSend);
-//  }
-  
+
   public void hasSentRoute(boolean sent) {
     startStopButton.setDisable(!sent);
   }
@@ -129,7 +160,7 @@ public class PCMapper extends Application {
     // change mouse and keyboard sensitivity for the canvas.
     mapLineCanvas.setDisable(!alterable);
   }
-  
+
   /////////////////////////////////////////////////////////////////////
   // All of this is mechanisms for collecting user input
   private Pair<Double, Double> initialTouch;
@@ -143,9 +174,9 @@ public class PCMapper extends Application {
     GraphicsContext context = mapLineCanvas.getGraphicsContext2D();
     context.clearRect(0, 0, mapLineCanvas.getWidth(), mapLineCanvas.getHeight());
     if (drawType == DrawType.BOUNDARY) {
-      context.strokeRect(Math.min(x1, x2), Math.min(y1,  y2), Math.abs(x1 - x2), Math.abs(y1 - y2));
+      context.strokeRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x1 - x2), Math.abs(y1 - y2));
     } else {
-      context.strokeLine(x1, y1, x2, y2);      
+      context.strokeLine(x1, y1, x2, y2);
     }
   }
 
@@ -153,7 +184,7 @@ public class PCMapper extends Application {
   void canvasPressed(MouseEvent event) { // This is a listener for mapLineCanvas.
     initialTouch = new Pair<>(event.getX(), event.getY());
   }
-  
+
   @FXML
   void canvasReleased(MouseEvent event) { // This is a listener for mapLineCanvas.
     double x1 = initialTouch.getKey();
@@ -177,15 +208,15 @@ public class PCMapper extends Application {
         double angle = -1 * Math.atan2(x2 - x1, y2 - y1) * 180 / Math.PI;
         journeyArrow.setStartX(robot.getLayoutX() + X_ROBOT_OFFSET);
         journeyArrow.setStartY(robot.getLayoutY() + Y_ROBOT_OFFSET);
-       
+
         if (Math.abs(x1 - x2) + Math.abs(y1 - y2) < Y_ROBOT_OFFSET && localMap.setDestination(x1, y1)) {
           journeyArrow.setEndX(x1);
           journeyArrow.setEndY(y1);
-        } else if (localMap.setPose(x1,y1, angle)) {
+        } else if (localMap.setPose(x1, y1, angle)) {
           robotRotation.setAngle(angle);
           robot.relocate(x1 - X_ROBOT_OFFSET, y1 - Y_ROBOT_OFFSET);
         }
-    }    
+    }
     GraphicsContext context = mapLineCanvas.getGraphicsContext2D();
     context.clearRect(0, 0, mapLineCanvas.getWidth(), mapLineCanvas.getHeight());
   }
@@ -207,44 +238,90 @@ public class PCMapper extends Application {
 
   @FXML
   void procUndo(KeyEvent event) {
-    if (localMap == null) return;
+    if (localMap == null)
+      return;
     if (event.getCharacter().charAt(0) == 8 || event.getCharacter().charAt(0) == 127) {
       localMap.removeLine();
     }
   }
 
   ///////////////////////////////////////////////////////////////////////////////
-  // The connect callback - this should really be a JavaFX Task
+  // The connect callback
+  private Task<Boolean> connectTask = null;
+
   @FXML
   void connect(ActionEvent event) {
-    
-    // The server needs to be listening on the correct IP address/Port combo
+    // Just use the task as a proxy for cancelling....
+    if (connectTask != null) {
+      connectTask.cancel();
+      connectTask = null;
+      hasConnected(ConnectionStatus.WAITING);
+      return;
+    }
+
     int val = (Integer) spinner.getValue();
-    ServerSocket serverSocket= null;
-    Socket clientSocket;
+    ServerSocket serverSocket = null;
     try {
       InetAddress addr = InetAddress.getByName("10.0.1." + val);
+      // serverSocket.setSoTimeout(300);
       serverSocket = new ServerSocket(2468, 1, addr);
-      clientSocket = serverSocket.accept();
-      serverSocket.close();
+    } catch (IOException e) {
+      return;
+    }
+    connectTask = new Connector(serverSocket);
+    Thread connectionThread = new Thread(connectTask);
+    connectionThread.setDaemon(true);
+    connectionThread.start();
+    hasConnected(ConnectionStatus.CONNECTING);
+  }
+
+  private class Connector extends Task<Boolean> {
+    ServerSocket mySocket;
+
+    public Connector(ServerSocket ss) {
+      mySocket = ss;
+    }
+
+    @Override
+    protected void succeeded() {
+      super.succeeded();
+      hasConnected(getValue() ? ConnectionStatus.CONNECTED : ConnectionStatus.WAITING);
+    }
+
+    @Override
+    protected void cancelled() {
+      super.cancelled();
+      hasConnected(ConnectionStatus.WAITING);
+      try {
+        mySocket.close();
+      } catch (IOException e) {
+        // Do nothing - this is weird but unimportant!
+      }
+    }
+
+    @Override
+    protected Boolean call() throws Exception {
+      // The server needs to be listening on the correct IP address/Port combo
+      Socket clientSocket = null;
+
+      while (!isCancelled() && clientSocket == null) {
+        try {
+          // set timeout and check for cancelled periodically.
+          clientSocket = mySocket.accept();
+        } catch (SocketTimeoutException e) {
+          // We do not worry - just try again - user can press cancel or exit. 
+        }
+      }
 
       out = new DataOutputStream(clientSocket.getOutputStream());
       in = new DataInputStream(clientSocket.getInputStream());
-    } catch (IOException e) {
-      return;
-    } finally {
-      if (serverSocket != null) {
-        try {
-          serverSocket.close();
-        } catch (Exception e) {}
-      }
+      Thread rdr = new ReaderThread(in);
+      rdr.setDaemon(true);
+      rdr.start();
+      return true;
     }
-    Thread rdr = new ReaderThread(in);
-    rdr.setDaemon(true);
-    rdr.start();
-    hasConnected(true);
   }
-  
+
   ////////////////////////////////////////////////////////////////////////////////////
   // Send all (updated) data to the EV3
   @FXML
@@ -253,55 +330,57 @@ public class PCMapper extends Application {
     LineMap mapToSend = localMap.getLineMap();
     if (mapToSend != null) {
       try {
-        out.writeChar(COMMANDS.MAP.getCode());
+        out.writeChar(Commands.MAP.getCode());
         mapToSend.dumpObject(out);
       } catch (IOException e) {
-        hasConnected(false);  // Connection broken.  Change all active components.
+        hasConnected(ConnectionStatus.WAITING); // Connection broken. Change all active components.
       }
     }
-    
+
     // Next send the Pose
     Pose currentPose = localMap.getPose();
     if (currentPose != null) {
-      // System.out.println("Sending (PC) Pose: " + currentPose.getX() + ", " + currentPose.getY() + ", " + currentPose.getHeading());
+      // System.out.println("Sending (PC) Pose: " + currentPose.getX() + ", " + currentPose.getY() +
+      // ", " + currentPose.getHeading());
       try {
-        out.writeChar(COMMANDS.POSE.getCode());
+        out.writeChar(Commands.POSE.getCode());
         currentPose.dumpObject(out);
       } catch (IOException e) {
-        hasConnected(false);  // Connection broken.  Change all active components.
+        hasConnected(ConnectionStatus.WAITING); // Connection broken. Change all active components.
       }
       hasSentRoute(true);
     }
-    
+
     // Finally send the new destination
     Waypoint goTo = localMap.getDestination();
     if (goTo != null) {
       // System.out.println("Sending (PC) Destination: " + goTo.getX() + ", " + goTo.getY());
       try {
-        out.writeChar(COMMANDS.DESTINATION.getCode());
+        out.writeChar(Commands.DESTINATION.getCode());
         goTo.dumpObject(out);
       } catch (IOException e) {
-        hasConnected(false);  // Connection broken.  Change all active components.
+        hasConnected(ConnectionStatus.WAITING); // Connection broken. Change all active components.
       }
       hasSentRoute(true);
     }
   }
-  
+
   ///////////////////////////////////////////////////////////
   // Start and stop the robot moving
 
   private boolean isStopped = true;
+
   @FXML
   void sendStartStop(ActionEvent event) {
     try {
-      out.writeChar(isStopped ? COMMANDS.START.getCode() : COMMANDS.STOP.getCode());
+      out.writeChar(isStopped ? Commands.START.getCode() : Commands.STOP.getCode());
       isStopped = !isStopped;
       mapAlterable(isStopped); // If we are stopped then we can alter the map.
       hasSentRoute(!isStopped); // We can only start a route once.
       // It is now not necessary to disable sending the same route twice as the EV3 deals with this.
-//      disableSend(true);  // Disable sending of route button whenever we press start/stop 
+      // disableSend(true); // Disable sending of route button whenever we press start/stop
     } catch (IOException e) {
-      hasConnected(false);  // Connection broken.  Change all active components.
+      hasConnected(ConnectionStatus.WAITING); // Connection broken. Change all active components.
     }
   }
 
@@ -311,26 +390,26 @@ public class PCMapper extends Application {
   void sendExit(ActionEvent event) {
     Platform.exit();
   }
-  
+
   @Override
   public void stop() {
-      if (out != null) {
-        try {
-          out.writeChar('X');
-          out.close();          
-        } catch (IOException e) {
-          // DO not let anything stop us exiting!
-        }
+    if (out != null) {
+      try {
+        out.writeChar('X');
+        out.close();
+      } catch (IOException e) {
+        // DO not let anything stop us exiting!
       }
+    }
   }
-  
+
   @Override
   public void start(Stage primaryStage) throws IOException {
     final VBox page = (VBox) FXMLLoader.load(PCMapper.class.getClassLoader().getResource("View.fxml"));
     Scene scene = new Scene(page);
     primaryStage.setScene(scene);
     primaryStage.setTitle("Map Viewer");
-    
+
     primaryStage.show();
     primaryStage.setMaxWidth(1300);
     primaryStage.setMaxHeight(800);
@@ -338,17 +417,17 @@ public class PCMapper extends Application {
 
   @FXML
   public void initialize() {
-      initSpinner();
-      initDraw(mapCanvas.getGraphicsContext2D());
-      initDraw(mapLineCanvas.getGraphicsContext2D());
-      robotRotation = new Rotate();
-      robotRotation.setPivotX(X_ROBOT_OFFSET);
-      robotRotation.setPivotY(Y_ROBOT_OFFSET);
-      robot.getTransforms().add(robotRotation);
-      drawGridLinesAndSetBoundary(mapCanvas);
-      mapLineCanvas.addEventFilter(MouseEvent.ANY, (e) -> mapLineCanvas.requestFocus());
+    initSpinner();
+    initDraw(mapCanvas.getGraphicsContext2D());
+    initDraw(mapLineCanvas.getGraphicsContext2D());
+    robotRotation = new Rotate();
+    robotRotation.setPivotX(X_ROBOT_OFFSET);
+    robotRotation.setPivotY(Y_ROBOT_OFFSET);
+    robot.getTransforms().add(robotRotation);
+    drawGridLinesAndSetBoundary(mapCanvas);
+    mapLineCanvas.addEventFilter(MouseEvent.ANY, (e) -> mapLineCanvas.requestFocus());
   }
-  
+
   ////////////////////////////////////////////////////////////////////////////////////////////////
   // Initialisation mechanisms
   private void drawGridLinesAndSetBoundary(Canvas mapArea) {
@@ -356,21 +435,21 @@ public class PCMapper extends Application {
     gContext.setFill(Color.BLACK);
     gContext.setStroke(Color.LIGHTGRAY);
     gContext.setLineWidth(1);
-    double xStep = gridCanvas.getWidth() / 20 ;
-    double yStep = gridCanvas.getHeight() / 15 ;
+    double xStep = gridCanvas.getWidth() / 20;
+    double yStep = gridCanvas.getHeight() / 15;
     xScale = (10 / xStep);
     yScale = (10 / yStep);
-    
+
     int coord = 10;
-    for (double xPos = xStep; xPos < gridCanvas.getWidth() ; xPos += xStep) {
-      gContext.strokeLine(xPos, 0, xPos, gridCanvas.getHeight());     
+    for (double xPos = xStep; xPos < gridCanvas.getWidth(); xPos += xStep) {
+      gContext.strokeLine(xPos, 0, xPos, gridCanvas.getHeight());
       gContext.fillText(String.valueOf(coord), xPos, gridCanvas.getHeight() - 20);
       coord += 10;
     }
     coord = 10;
-    for (double yPos = yStep; yPos < gridCanvas.getHeight() ; yPos += yStep) {
+    for (double yPos = yStep; yPos < gridCanvas.getHeight(); yPos += yStep) {
       double yAdjusted = gridCanvas.getHeight() - yPos;
-      gContext.strokeLine(0, yAdjusted, gridCanvas.getWidth(), yAdjusted);      
+      gContext.strokeLine(0, yAdjusted, gridCanvas.getWidth(), yAdjusted);
       gContext.fillText(String.valueOf(coord), 20, yAdjusted);
       coord += 10;
     }
@@ -383,15 +462,15 @@ public class PCMapper extends Application {
         journeyArrow.getEndX(), 
         journeyArrow.getEndY());
   }
-  
+
   private void initSpinner() {
     SpinnerValueFactory<Integer> valueFactory = //
         new SpinnerValueFactory.IntegerSpinnerValueFactory(1, 254, 8);
     spinner.setValueFactory(valueFactory);
-    spinner.getStyleClass().add(Spinner.STYLE_CLASS_SPLIT_ARROWS_HORIZONTAL);    
+    spinner.getStyleClass().add(Spinner.STYLE_CLASS_SPLIT_ARROWS_HORIZONTAL);
   }
 
-  private void initDraw(GraphicsContext gc){
+  private void initDraw(GraphicsContext gc) {
     gc.setFill(Color.RED);
     gc.setStroke(Color.BLUE);
     gc.setLineWidth(1);
@@ -403,6 +482,7 @@ public class PCMapper extends Application {
     private DataInputStream in;
     Path path = new Path();
     Pose pose = new Pose();
+
     public ReaderThread(DataInputStream in) {
       this.in = in;
     }
@@ -411,14 +491,14 @@ public class PCMapper extends Application {
       try {
         // We can read in car Pose or Planned Path - nothing else.
         while (true) {
-          if (in.readChar() == COMMANDS.POSE.getCode())  { // Pose
+          if (in.readChar() == Commands.POSE.getCode()) { // Pose
             pose.loadObject(in);
             // System.out.println("Got (robot) Pose: " + pose.getX() + ", " + pose.getY() + ", " + pose.getHeading());
             Platform.runLater(new Runnable() {
               public void run() {
                 double xPos = pose.getX() / xScale - X_ROBOT_OFFSET;
-                double yPos = (mapCanvas.getHeight() - pose.getY() / yScale) - Y_ROBOT_OFFSET; 
-                robot.relocate(xPos,  yPos);
+                double yPos = (mapCanvas.getHeight() - pose.getY() / yScale) - Y_ROBOT_OFFSET;
+                robot.relocate(xPos, yPos);
                 robotRotation.setAngle(-90 - pose.getHeading());
                 localMap.setPose(pose); // set pose in localMap from JavaFX thread to avoid the need for synchronisation.
               }
@@ -429,7 +509,7 @@ public class PCMapper extends Application {
             int count = path.size();
             double[] xList = new double[count];
             double[] yList = new double[count];
-            for (int index = 0 ; index < count; index++) {
+            for (int index = 0; index < count; index++) {
             //  System.out.println("Got(robot) Path (point): " + path.get(index).getX() + ", " + path.get(index).getY());
 
               xList[index] = path.get(index).getX() / xScale;
@@ -445,7 +525,7 @@ public class PCMapper extends Application {
                 context.restore();
               }
             });
-            
+
           }
         }
       } catch (IOException e) {
@@ -453,7 +533,7 @@ public class PCMapper extends Application {
       }
     }
   }
-  
+
   //////////////////////////////////////////////////////////////////////////////////
   // The current state of the program - including the Map and the robot and its journey.
   // All data stored in robot coordinates.
@@ -469,9 +549,11 @@ public class PCMapper extends Application {
     private float horizToEV3(double x) {
       return (float) (x * xScale);
     }
+
     private float vertToEV3(double y) {
       return (float) ((mapCanvas.getHeight() - y) * yScale);
     }
+
     private float angleToEV3(double angle) {
       angle -= 90;
       while (angle > 180) {
@@ -482,14 +564,14 @@ public class PCMapper extends Application {
       }
       return (float) angle;
     }
-    
+
     public Map(double width, double height, double x, double y, double angle, double rDX, double rDy) {
       boundary = new Rectangle(0f, 0f, (float) (width * xScale), (float) (height * yScale));
       pose = new Pose(horizToEV3(x), vertToEV3(y), angleToEV3(angle));
       destination = new Waypoint(horizToEV3(rDX), vertToEV3(rDy));
     }
-    
-    public Boolean addLine(double x1,double y1, double x2, double y2) {
+
+    public Boolean addLine(double x1, double y1, double x2, double y2) {
       if (boundary.contains(horizToEV3(x1), vertToEV3(y1)) && boundary.contains(horizToEV3(x2), vertToEV3(y2))) {
         Line nLine = new Line(horizToEV3(x1), vertToEV3(y1), horizToEV3(x2), vertToEV3(y2));
         lines.push(nLine);
@@ -498,6 +580,7 @@ public class PCMapper extends Application {
       }
       return false;
     }
+
     public boolean setDestination(double x1, double y1) {
       if (!boundary.contains(horizToEV3(x1), vertToEV3(y1))) {
         return false;
@@ -512,7 +595,7 @@ public class PCMapper extends Application {
       if (!nBoundary.contains(pose.getLocation()) || !nBoundary.contains(destination)) {
         return false;
       }
-      for (Line l: lines) {
+      for (Line l : lines) {
         if (!nBoundary.contains(l.getP1()) || !nBoundary.contains(l.getP2())) {
           return false;
         }
@@ -521,12 +604,12 @@ public class PCMapper extends Application {
       mapChanged = true;
       return true;
     }
-    
+
     public void setPose(Pose poseFromEV3) {
       pose = poseFromEV3;
       poseChanged = false;
     }
-    
+
     public boolean setPose(double x1, double y1, double angle) {
       if (!boundary.contains(horizToEV3(x1), vertToEV3(y1))) {
         return false;
@@ -543,7 +626,7 @@ public class PCMapper extends Application {
       poseChanged = false;
       return pose;
     }
-    
+
     public LineMap getLineMap() {
       if (!mapChanged) {
         return null;
@@ -551,7 +634,7 @@ public class PCMapper extends Application {
       mapChanged = false;
       return new LineMap(lines.toArray(new Line[lines.size()]), boundary);
     }
-    
+
     public Waypoint getDestination() {
       if (!destinationChanged) {
         return null;
@@ -559,26 +642,27 @@ public class PCMapper extends Application {
       destinationChanged = false;
       return destination;
     }
-    
+
     public void drawMap() {
-      GraphicsContext baseContext = mapCanvas.getGraphicsContext2D();      
+      GraphicsContext baseContext = mapCanvas.getGraphicsContext2D();
       baseContext.clearRect(0, 0, mapCanvas.getWidth(), mapCanvas.getHeight());
       if (boundary != null) {
         baseContext.strokeRect(
           boundary.getX() / xScale, mapCanvas.getHeight() - boundary.getY() / yScale, 
           boundary.getWidth() / xScale, boundary.getHeight() / yScale);
       }
-      for (Line l: lines) {
+      for (Line l : lines) {
         // draw is screen coordinates
         baseContext.strokeLine(l.getX1() / xScale, mapCanvas.getHeight() - l.getY1() / yScale, l.getX2() / xScale, mapCanvas.getHeight() - l.getY2() / yScale);
       }
     }
+
     public void removeLine() {
       if (lines.empty()) {
         return;
       }
       lines.pop();
       drawMap();
-    }    
+    }
   }
 }
