@@ -197,7 +197,7 @@ public class PCMapper extends Application {
     double y2 = event.getY();
     switch (drawType) {
       case BOUNDARY:
-        if (localMap.setBoundary(Math.max(x1, x2), Math.max(y1,  y2), Math.abs(x1 - x2), Math.abs(y1 - y2))) {
+        if (localMap.setBoundary(Math.min(x1, x2), Math.max(y1,  y2), Math.abs(x1 - x2), Math.abs(y1 - y2))) {
           localMap.drawMap();
         }
         break;
@@ -210,8 +210,6 @@ public class PCMapper extends Application {
         // Move Car and set endpoint.
         // If initial press close to release then it is an endpoint, otherwise it is the pose
         double angle = -1 * Math.atan2(x2 - x1, y2 - y1) * 180 / Math.PI;
-        journeyArrow.setStartX(robot.getLayoutX() + X_ROBOT_OFFSET);
-        journeyArrow.setStartY(robot.getLayoutY() + Y_ROBOT_OFFSET);
 
         if (Math.abs(x1 - x2) + Math.abs(y1 - y2) < Y_ROBOT_OFFSET && localMap.setDestination(x1, y1)) {
           journeyArrow.setEndX(x1);
@@ -220,6 +218,8 @@ public class PCMapper extends Application {
           robotRotation.setAngle(angle);
           robot.relocate(x1 - X_ROBOT_OFFSET, y1 - Y_ROBOT_OFFSET);
         }
+        journeyArrow.setStartX(robot.getLayoutX() + X_ROBOT_OFFSET);
+        journeyArrow.setStartY(robot.getLayoutY() + Y_ROBOT_OFFSET);
     }
     GraphicsContext context = mapLineCanvas.getGraphicsContext2D();
     context.clearRect(0, 0, mapLineCanvas.getWidth(), mapLineCanvas.getHeight());
@@ -651,9 +651,11 @@ public class PCMapper extends Application {
       GraphicsContext baseContext = mapCanvas.getGraphicsContext2D();
       baseContext.clearRect(0, 0, mapCanvas.getWidth(), mapCanvas.getHeight());
       if (boundary != null) {
-        baseContext.strokeRect(
-          boundary.getX() / xScale, mapCanvas.getHeight() - boundary.getY() / yScale, 
-          boundary.getWidth() / xScale, boundary.getHeight() / yScale);
+        double left = boundary.getX() / xScale;
+        double width = boundary.getWidth() / xScale;
+        double height = boundary.getHeight() / yScale;
+        double baseLine = mapCanvas.getHeight() - boundary.getY() / yScale - height;
+        baseContext.strokeRect(left, baseLine, width, height);
       }
       for (Line l : lines) {
         // draw is screen coordinates
