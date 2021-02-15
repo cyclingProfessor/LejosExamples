@@ -39,6 +39,10 @@ import lejos.robotics.pathfinding.Path;
 
 public class PCMapper extends Application {
 
+  public static void main(String[] args) {
+    launch(args);
+  }
+  
   public enum Commands {
     POSE('P'), DESTINATION('D'), START('B'), STOP('E'), EXIT('X'), MAP('M');
 
