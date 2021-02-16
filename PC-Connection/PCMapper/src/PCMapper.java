@@ -5,6 +5,8 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Stack;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -12,6 +14,8 @@ import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
+import javafx.geometry.Insets;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
@@ -22,11 +26,18 @@ import javafx.scene.control.SpinnerValueFactory;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.layout.Background;
+import javafx.scene.layout.BackgroundFill;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.scene.text.Text;
+import javafx.scene.text.TextFlow;
 import javafx.scene.transform.Rotate;
 import javafx.stage.Stage;
 import javafx.util.Pair;
@@ -41,6 +52,102 @@ public class PCMapper extends Application {
 
   public static void main(String[] args) {
     launch(args);
+  }
+  
+  ////////////////////////////////////////////////
+  // Finally - a help screen!
+  //////////////////////////////////////////////////////
+  private static String help[]  = {
+    "This is a program in which you can draw Line Maps to send to an EV3.\n",
+    "To interact with the program: draw a map, set the robot position and desired destiantion and send these to the EV3.\n\n" +
+        "  Use the radio buttons ",
+        "Map",
+        ", ",
+        "Boundary", 
+        " and ",
+        "Robot",
+        " to change the user input mode.\n",
+        "      Map", 
+        " is used to draw restricting lines on the ",
+        "LineMap", 
+         "- click and drag to draw a restriction\n",
+        "      Boundary",
+        " is used to draw the boundary rectangle of the ",
+        "LineMap", 
+        " - click and drag to draw the boundary rectangle\n",
+        "      Robot",
+        " is used to set the robot's position and facing direction (click to set position and drag to set direction).\n",
+        "      Robot",
+        " is used to set the robot's destination (double click).\n\n" +
+    "The program starts by establishing a TCP/IP end point and waits for any program to make a connection.\n" +
+  "It then sends data to that connected program by writing to the network connection.\n" +
+  "It only sends data when instructed to by the the user pressing the ",
+  "Start/Stop",
+  " or ",
+  "Send to EV3",
+  "button.\n" +
+  "These datagrams are just dumps of EV3 ",
+  "Pose",
+  ", ",
+  "Waypoint",
+  " and ",
+  "Linemap", 
+  " objects using the builtin in (lejos) ",
+  "dumpObject",
+  " methods.\n" +
+  "It is expected that the program at the other end running on an EV3 will use ",
+  "loadObject",
+  " to get back copies of these lejos objects.\n" +
+  "Each object is preceded with an ASCII character so that the EV3 program can decide how to read the dumped object: \n",
+  "LineMap",
+  "(M), ",
+  "Pose",
+  "(P) and Destination ",
+  "WayPoint",
+  "(D).\n\n" +
+  "When a ",
+  "Start",
+  "(B) or ",
+  "STOP",
+  "(E) is sent from this program the EV3 might decide to navigate a path.\n\n" +
+  "This program also actively reads data from the network connection in a polling ",
+  "Thread", //27 
+  " expecting an updated ",
+  "Pose", //29
+  "(P) or a ",
+  "Path", //30
+  "(R) object.\n\n" +
+  "Whenever this program receives a ",
+  "Pose",
+  " it updates its own notion of the robot pose and redraws the screen.\n" +
+  "When it receives a ",
+  "Path", 
+  " object it just draws the lines making up the path in green on the screen.\n\n",
+  "Press HELP again to get back to input mode."
+  };
+  
+  private Node helpPane = getHelpText();
+  private static Node getHelpText() {
+    TextFlow helpText = new TextFlow();
+    List<Text> lines = new ArrayList<>();
+    Text line = new Text(help[0]);
+    line.setFont(Font.font(null, FontWeight.BOLD, 24));
+    lines.add(line); // Do the title separately
+    
+    for (int index = 1 ; index < help.length; index++) {
+      line = new Text(help[index]);
+      if (index % 2 == 0) {
+        line.setFill(Color.RED);
+      }
+      line.setFont(Font.font(20));
+      lines.add(line);
+    }
+    
+    helpText.getChildren().addAll(lines);
+    HBox retval = new HBox(helpText);
+    retval.setPadding(new Insets(15, 12, 15, 12));
+    retval.setBackground(new Background(new BackgroundFill(Color.IVORY,null,null)));
+    return retval;
   }
   
   public enum Commands {
@@ -111,6 +218,9 @@ public class PCMapper extends Application {
   @FXML
   private javafx.scene.shape.Line journeyArrow; // The journey we are planning.
 
+  @FXML 
+  private StackPane mainView; // The whole stack of panes used for drawing and for the help screen.
+  
   @FXML
   private Canvas gridCanvas; // Fixed coordinates - using centimetres.
 
@@ -325,6 +435,17 @@ public class PCMapper extends Application {
       return true;
     }
   }
+  ///////////////////////////////////////////
+  // Help button
+  @FXML
+  void toggleHelp(ActionEvent event) {
+    List<Node> stack = mainView.getChildren();
+    if (stack.contains(helpPane)) {
+      stack.remove(helpPane);
+    } else {
+      stack.add(helpPane);
+    }
+  }
 
   ////////////////////////////////////////////////////////////////////////////////////
   // Send all (updated) data to the EV3
@@ -413,7 +534,7 @@ public class PCMapper extends Application {
     Scene scene = new Scene(page);
     primaryStage.setScene(scene);
     primaryStage.setTitle("Map Viewer");
-
+    
     primaryStage.show();
     primaryStage.setMaxWidth(1300);
     primaryStage.setMaxHeight(800);

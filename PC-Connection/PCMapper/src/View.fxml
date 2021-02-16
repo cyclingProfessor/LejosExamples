@@ -20,6 +20,7 @@
 <?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.shape.Line?>
+<?import javafx.scene.text.Font?>
 
 <VBox xmlns="http://javafx.com/javafx/11.0.1" xmlns:fx="http://javafx.com/fxml/1" fx:controller="PCMapper">
    <children>
@@ -79,10 +80,15 @@
                   <Insets />
                </GridPane.margin>
             </HBox>
-            <Label id="connectedLabel" fx:id="connectedLabel" text="Connected" textFill="RED" visible="false" GridPane.columnIndex="1" GridPane.halignment="CENTER" GridPane.valignment="CENTER" />
+            <Label id="connectedLabel" fx:id="connectedLabel" text="Connected" textFill="RED" GridPane.columnIndex="1" GridPane.halignment="CENTER" GridPane.valignment="CENTER" />
             <Button fx:id="sendButton" accessibleText="Send Data to EV3" disable="true" mnemonicParsing="false" onAction="#sendUpdate" text="Send To EV3" GridPane.columnIndex="2" GridPane.halignment="CENTER" GridPane.valignment="CENTER" />
             <ButtonBar prefHeight="40.0" prefWidth="200.0" GridPane.columnIndex="3">
               <buttons>
+                  <Button mnemonicParsing="false" onAction="#toggleHelp" text="HELP" textFill="#31ab4c">
+                     <font>
+                        <Font size="16.0" />
+                     </font>
+                  </Button>
                   <Button id="startStopButton" fx:id="startStopButton" accessibleText="Start/SOP EV3 on Path" disable="true" mnemonicParsing="false" onAction="#sendStartStop" text="Start" />
                   <Button fx:id="exitButton" accessibleText="Exit the Program" mnemonicParsing="false" onAction="#sendExit" text="Exit" />
               </buttons>
@@ -94,7 +100,7 @@
       </GridPane>
       <ScrollPane style="-fx-border-color: Red;">
          <content>
-            <StackPane prefHeight="720.0" prefWidth="1280.0">
+            <StackPane fx:id="mainView" prefHeight="720.0" prefWidth="1280.0">
                <children>
                   <Canvas fx:id="gridCanvas" height="720.0" width="1280.0" />
                   <Canvas fx:id="pathCanvas" height="720.0" width="1280.0" />
