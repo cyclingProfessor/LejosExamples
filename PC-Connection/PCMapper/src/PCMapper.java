@@ -551,6 +551,7 @@ public class PCMapper extends Application {
     robot.getTransforms().add(robotRotation);
     drawGridLinesAndSetBoundary(mapCanvas);
     mapLineCanvas.addEventFilter(MouseEvent.ANY, (e) -> mapLineCanvas.requestFocus());
+    hasConnected(ConnectionStatus.WAITING);
   }
 
   ////////////////////////////////////////////////////////////////////////////////////////////////

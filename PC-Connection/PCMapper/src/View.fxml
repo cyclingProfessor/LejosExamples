@@ -28,8 +28,8 @@
          <columnConstraints>
             <ColumnConstraints hgrow="SOMETIMES" maxWidth="280.0" minWidth="10.0" prefWidth="260.0" />
             <ColumnConstraints hgrow="SOMETIMES" maxWidth="545.0" minWidth="10.0" prefWidth="201.0" />
-            <ColumnConstraints hgrow="SOMETIMES" maxWidth="607.0" minWidth="10.0" prefWidth="313.0" />
-            <ColumnConstraints hgrow="SOMETIMES" maxWidth="514.0" minWidth="10.0" prefWidth="236.0" />
+            <ColumnConstraints hgrow="SOMETIMES" maxWidth="607.0" minWidth="10.0" prefWidth="230.0" />
+            <ColumnConstraints hgrow="SOMETIMES" maxWidth="514.0" minWidth="10.0" prefWidth="305.0" />
             <ColumnConstraints hgrow="SOMETIMES" maxWidth="596.0" minWidth="10.0" prefWidth="310.0" />
          </columnConstraints>
          <rowConstraints>
@@ -80,7 +80,7 @@
                   <Insets />
                </GridPane.margin>
             </HBox>
-            <Label id="connectedLabel" fx:id="connectedLabel" text="Connected" textFill="RED" GridPane.columnIndex="1" GridPane.halignment="CENTER" GridPane.valignment="CENTER" />
+            <Label id="connectedLabel" fx:id="connectedLabel" prefHeight="16.0" prefWidth="160.0" text="Connected" textFill="RED" GridPane.columnIndex="1" GridPane.halignment="CENTER" GridPane.valignment="CENTER" />
             <Button fx:id="sendButton" accessibleText="Send Data to EV3" disable="true" mnemonicParsing="false" onAction="#sendUpdate" text="Send To EV3" GridPane.columnIndex="2" GridPane.halignment="CENTER" GridPane.valignment="CENTER" />
             <ButtonBar prefHeight="40.0" prefWidth="200.0" GridPane.columnIndex="3">
               <buttons>
